@@ -1,3 +1,4 @@
 .ipynb_checkpoints
+__psycache__
 *.py
 Question1_DLF-OneHot.ipynb
