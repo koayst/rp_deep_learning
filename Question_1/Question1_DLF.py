@@ -1,11 +1,11 @@
-
+#!/usr/bin/env python
 # coding: utf-8
 
 # <div style="width: 400px; height: 160px;">
 #     <img src="rplogo_small.png" width="100%" height="100%" align="left">
 # </div>
 # 
-# ###     TIPP - AAI Assignement (Deep Learning Fundamentals)<br>Due Date: 21 February 2020
+# ###     TIPP - AAI Assignement (Deep Learning Fundamentals)<br>Due Date: 26 February 2020
 # ###     Submitted By: <u>KOAY</u> SENG TIAN<br>Email: sengtian@yahoo.com
 # 
 
@@ -13,7 +13,7 @@
 
 
 # TIPP - AAI Assignment (Deep Learning Fundamentals)
-# Date Due: 21February 2020
+# Date Due: 26 February 2020
 # Submited By: KOAY SENG TIAN
 # Email: sengtian@yahoo.com
 #
@@ -27,12 +27,14 @@
 from keras import models
 from keras import layers
 from keras import losses
+from keras.callbacks import EarlyStopping
 from keras.optimizers import SGD
+from keras.utils import to_categorical
 
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import xticks
 
-from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.model_selection import train_test_split
 
@@ -40,19 +42,22 @@ import numpy as np
 import os
 import pandas as pd
 
-pd.set_option('display.max_rows', 210)
+# set max lines Pandas can display
+pd.set_option('display.max_rows', 220)
 
-# for reproducibility
+# for reproducibility, 1337 is arbitrarily set
 np.random.seed(1337)
 
-# verbose mode - 0=show little, 1=show more like charts
-verbose=0
+# verbose mode - 0=show little info, 1=show more info like charts
+#verbose=0
+verbose=1
 
 
 # In[2]:
 
 
 def load_data():
+    # the dataset files are stored under the 'data' directory
     filedir = os.path.join(os.getcwd(), 'data')
     mines_filename = 'sonar.mines'
     rocks_filename = 'sonar.rocks'
@@ -63,8 +68,10 @@ def load_data():
     df = pd.read_csv(file, sep=',', header=None)
     
     # create the header for the dataframe
-    # the header starts with 'ANG' followed by a number
-    header = [f"ANG{x:02d}" for x in range(0, df.shape[1])]
+    # the header starts with 'A' followed by a number
+    header = [f"A{x:02d}" for x in range(1, df.shape[1])]
+    # the last column is named as 'C' as in 'Class'
+    header.append('C')
     df.columns = header
     
     return df
@@ -86,7 +93,7 @@ def exploratory_data_analysis(df):
     print('ZERO count in each column:')
     # columns 42 to 59 have 0 values, but it is still OK
     # as the document said 'each pattern is a set of 60 
-    # numbers in the range 0.0 to 1.0 [sonar.names]
+    # numbers in the range 0.0 to 1.0 [file: sonar.names]
     print(df.eq(0).sum())
     print()
     
@@ -116,28 +123,42 @@ def exploratory_data_analysis(df):
 
 def charts(df):
     df.plot.box(figsize=(12,7))
-    plt.xticks(np.arange(0, 61, 5.0), [f"ANG{x:02d}" for x in range(0, 61, 5)], rotation=45)
-    plt.title('Boxplot for all 60 Angles')
+    plt.xticks(np.arange(1, 60, 3), [f"A{x:02d}" for x in range(1, 60, 3)], rotation=45)
+    plt.title('Fig 1: Boxplot for A01 - A60 Angles')
     plt.show()
-    
 
 
 # In[5]:
 
 
+# load the dataset and observe its shape
 sonar_df = load_data()
 sonar_df.shape
 
 if verbose==1:
     print(sonar_df.head())
     print(sonar_df.tail())
+    print()
     print(sonar_df.info())
+    print()
+    
+    # print to observe the min, max values of dataset
+    descT = sonar_df.describe().transpose()
+    cols = list(descT)
+
+    #move 'max' column next to 'min' column for easy visual comparison
+    cols.insert(cols.index('25%'), cols.pop(cols.index('max')))
+    descT = descT.loc[:, cols]
+    print(descT)
+    print()
 
     charts(sonar_df)
 
 
 # In[6]:
 
+
+# looking at Fig 1. above, the data is normally distributed
 
 if verbose==1:
     exploratory_data_analysis(sonar_df)
@@ -146,49 +167,90 @@ if verbose==1:
 # In[7]:
 
 
-X = sonar_df.loc[:, sonar_df.columns != 'ANG60'].copy()
-y = sonar_df.loc[:, 'ANG60'].copy()
+X = sonar_df.drop(columns=['C'])
+y = sonar_df['C']
+
+if verbose==1:
+    X.head()
+    y.head()
 
 
 # In[8]:
 
 
-# perform label encoding on Y
+# perform label encoding on last column 
 lbl_encoder = LabelEncoder()
+
+# encode 'R' as in 'Rock' to 0
+# encode 'M' as in 'Mine' to 1
+lbl_encoder = LabelEncoder.fit(lbl_encoder, y = ["R", "M"])
 y_encoded = lbl_encoder.fit_transform(y)
 
-X_train, X_test, y_train, y_test = train_test_split(X, y_encoded, test_size=0.2, stratify=y_encoded)
+# perform one hot encoding
+y = to_categorical(y_encoded)
 
-# standard scaling
-std_scaler = StandardScaler()
-std_scaler.fit(X_train)
-X_train = std_scaler.transform(X_train)
-X_test = std_scaler.transform (X_test)
+# cast X to numpy array
+X = X.to_numpy()
 
 
 # In[9]:
 
 
-# build the Artifical Neuro Network
-network = models.Sequential()
-network.add(layers.Dense(32, activation='relu', input_shape=(60,)))
-network.add(layers.Dense(1, activation='sigmoid'))
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.15, shuffle=True)
 
 
 # In[10]:
 
 
-network.summary()
-
-# use stochastic gradient descent as optimizer
-sgd = SGD(lr = 0.01, momentum = 0.8, decay = 0.01, nesterov = True)
-network.compile(optimizer=sgd, loss='binary_crossentropy', metrics=['accuracy'])
+# perform scaling
+scaler = StandardScaler()
+scaler.fit(X_train)
+X_train = scaler.transform(X_train)
+X_test = scaler.transform (X_test)
 
 
 # In[11]:
 
 
-history = network.fit(X_train, y_train, validation_split=0.2, epochs=50, batch_size=30, shuffle=True, verbose=1)
+# check to ensure the shape and 
+# data type are what I think it should be
+if verbose==1:
+    X_train.shape
+    type(X_train)
+    X_test.shape
+    type(X_test)
+    y_train.shape
+    type(y_train)
+    y_test.shape
+    type(y_test)
+
+
+# In[12]:
+
+
+from keras import regularizers
+
+# build the Artifical Neuro Network layers
+network = models.Sequential()
+network.add(layers.Dense(28, activation='relu', input_shape=(60,)))
+network.add(layers.Dense(28, activation='relu', kernel_regularizer=regularizers.l2(0.001)))
+network.add(layers.Dense(2, activation='softmax'))
+
+
+# In[13]:
+
+
+network.compile(optimizer='rmsprop', loss='categorical_crossentropy', metrics=['accuracy'])
+network.summary()
+
+
+# In[14]:
+
+
+history = network.fit(
+                      X_train, y_train, validation_split=0.1, 
+                      epochs=70, batch_size=6, shuffle=True, verbose=verbose
+                     )
 
 print()
 test_loss, test_acc = network.evaluate(X_test, y_test)
@@ -197,10 +259,8 @@ print()
 print('test_acc:', test_acc)
 
 
-# In[12]:
+# In[15]:
 
-
-# from the above, the test accuracy is ~88%
 
 history_dict = history.history
 loss_values = history_dict['loss']
@@ -212,25 +272,25 @@ val_acc_values = history_dict['val_acc']
 epochs = range(1, len(loss_values) + 1)
 
 
-# In[13]:
+# In[16]:
 
 
-fig = plt.figure(figsize=(8,12))
-ax1 = fig.add_subplot(211)
-ax2 = fig.add_subplot(212)
+fig = plt.figure(figsize=(11,5))
+ax1 = fig.add_subplot(121)
+ax2 = fig.add_subplot(122)
 
-#draw a chart to show validation vs training losses
-ax1.plot(epochs, loss_values, 'r--', label='Training loss')
+#draw chart to show validation vs training losses
+ax1.plot(epochs, loss_values, 'r', label='Training loss')
 ax1.plot(epochs, val_loss_values, 'b', label='Validation loss')
-ax1.title.set_text('Training and Validation Loss')
+ax1.title.set_text('Fig 2. Training and Validation Loss')
 ax1.set_xlabel('Epochs')
 ax1.set_ylabel('Loss')
 ax1.legend()
 
-# draw a chart to show validation vs training accuracy
-ax2.plot(epochs, acc_values, 'r--', label='Training acc')
+# draw chart to show validation vs training accuracy
+ax2.plot(epochs, acc_values, 'r', label='Training acc')
 ax2.plot(epochs, val_acc_values, 'b', label='Validation acc')
-ax2.title.set_text('Training and Validation Accuracy')
+ax2.title.set_text('Fig 3. Training and Validation Accuracy')
 ax2.set_xlabel('Epochs')
 ax2.set_ylabel('Loss')
 ax2.legend()
