@@ -5,13 +5,13 @@
 #     <img src="rplogo_small.png" width="100%" height="100%" align="left">
 # </div>
 # 
-# ###     TIPP - AAI Assignement (Deep Learning Fundamentals)<br>Due Date: 21 February 2020
+# ###     TIPP - AAI Assignement (Deep Learning Fundamentals)<br>Due Date: 26 February 2020
 # ###     Submitted By: <u>KOAY</u> SENG TIAN<br>Email: sengtian@yahoo.com
 # 
 
-# ## Question 2 (Testing #1 & Testing #2)
+# ## Question 2 (Model Testing: Test Set #1 & Test Set #2)
 
-# In[ ]:
+# In[1]:
 
 
 import argparse
@@ -21,7 +21,7 @@ import pandas as pd
 import os
 import pickle
 
-# set verbose=0 the skip the charts and other information
+# set verbose=0 to skip the charts and other information
 # set verbose=1 to see chart and other information
 #verbose=0
 verbose=1
@@ -31,7 +31,7 @@ testdata_file = 'datatest.txt'
 #testdata_file = 'datatest2.txt'
 
 
-# In[ ]:
+# In[2]:
 
 
 # You can run this either as a 1) jupyter note or 2) File -> Download as -> Python (.py) 
@@ -68,35 +68,43 @@ if __name__ == '__main__' and '__file__' in globals():
     if args.get('test') == 1:
         testdata_file = 'datatest2.txt'
         
-    print('Verbose=', verbose, ' Test data file=', testdata_file)
+    print('Verbose =', verbose, ' Test data file =', testdata_file)
     print()
     
 
 
-# In[ ]:
+# In[3]:
 
 
 import keras
 
-model_filename = 'model.pkl'
+model_filename = 'model.h5'
 scaler_filename = 'scaler.pkl'
 
 model_dir = os.path.join(os.getcwd(), 'model')
 data_dir = os.path.join(os.getcwd(), 'data')
 
 
-# In[ ]:
+# In[4]:
 
 
 # load model and scaler
-with open(os.path.join(model_dir, model_filename), 'rb') as model_file:
-    model = pickle.load(model_file)
+from keras.models import load_model
+
+model = load_model(os.path.join(model_dir, model_filename))
+print('Load model')
+
+# with open(os.path.join(model_dir, model_filename), 'rb') as model_file:
+#     model = pickle.load(model_file)
+#     print('Load model.')
     
 with open(os.path.join(model_dir, scaler_filename), 'rb') as scaler_file:
     scaler = pickle.load(scaler_file)
+    print('Load scaler.')
+    
 
 
-# In[ ]:
+# In[5]:
 
 
 test_df = pd.read_csv(os.path.join(data_dir, testdata_file))
@@ -106,76 +114,112 @@ test_df.sort_values(by='date', inplace=True, ascending=True)
 if verbose==1:
     print('Test data shape=', test_df.shape)
     print()
-    print('Training Data:')
     print('The time series starts from: ', test_df.date.min())
     print('The time series ends on: ', test_df.date.max())
     print()
+    
 
 
-# In[ ]:
+# In[6]:
 
 
 import mycharts
 
 if verbose==1:
-    mycharts.chart01(test_df.columns[1:], test_df, 'blue')
+    mycharts.chart01(test_df.columns[1:], test_df, 'green')
 
 
-# In[ ]:
+# In[7]:
 
 
 #set the dat as index
-test_df = test_df.set_index('date')
+test_df = test_df.set_index('date')   
 
-# shift the data forward by 1
-# to simulate the effect for future occupancy forecasting 
-test_df = test_df.shift(1)
 
-# drop the first row
-test_df.drop(test_df.head(1).index, inplace=True)
+# In[8]:
+
 
 if verbose==1:
-    print('First row was dropped')
-    print('Shape=', test_df.shape)
+    print('-----HEAD-(Before Shifting)----')
+    print(test_df.head())
     print()
+    print('-----TAIL-(Before Shifting)----')
+    print(test_df.tail())
+    print()
+    print(test_df.dtypes)
     
 
 
-# In[ ]:
+# In[9]:
+
+
+# shift the data 'backward' by 1
+# so as to perform future occupancy forecasting 
+test_df.Occupancy = test_df.Occupancy.shift(-1)
+
+
+# In[10]:
+
+
+# drop the last row as occupancy is Nan
+test_df.drop(test_df.tail(1).index, inplace=True)
+test_df.Occupancy = test_df.Occupancy.astype('int64')
+
+
+# In[11]:
+
+
+if verbose==1:
+    # the below prints are meant for integrity 
+    # checking i.e. compare before and after shifting
+    print('Last row was dropped')
+    print('Shape=', test_df.shape)
+    print()
+    print('-----HEAD-(After Shifting)----')
+    print(test_df.head())
+    print()
+    print('-----TAIL-(After Shifting)----')
+    print(test_df.tail())
+    print()
+    print(test_df.dtypes)
+    
+
+
+# In[12]:
 
 
 X = test_df.iloc[:,  : -1].copy().to_numpy()
 y = test_df.iloc[:, -1 ].copy().to_numpy()
 
 
-# In[ ]:
+# In[13]:
 
 
 X = scaler.transform(X)
 
-#reshape for LSTM's format samples, timestep and features
+#reshape for LSTM's format samples, timestep and features requirements
 X = X.reshape(-1, 1, 5)
 
 
-# In[ ]:
+# In[14]:
 
 
 pred = model.predict(X)
 pred_classes = model.predict_classes(X)
 
 
-# In[ ]:
+# In[15]:
 
 
 pred_classes_squeezed = np.squeeze(pred_classes)
 
 
-# In[ ]:
+# In[16]:
 
 
 from sklearn.metrics import classification_report, confusion_matrix
 
-print('\n-----------------------------------------------------')
+print('-----------------------------------------------------')
 print('Test file: ', testdata_file)
 print('-----------------------------------------------------')
 print('Confusion Matrix:')
@@ -185,11 +229,28 @@ print('Classification Report:')
 print(classification_report(y, pred_classes_squeezed))
 
 
-# In[ ]:
+# In[17]:
 
 
-# using datatest.txt, the accuracy is 98%, precision (0=100%, 1.0=96%)
-# using datatest2.txt, the accuracy is 99%, precision (0=100%, 1.0=96%)
+# using datatest.txt, the accuracy is 98%, precision (0=100%, 1=94%)
+# using datatest2.txt, the accuracy is 98%, precision (0=100%, 1=91%)
+
+
+# In[18]:
+
+
+fig, axes = plt.subplots(nrows=2, figsize=(15, 4))
+axes[0].plot (range(len(X)), y, 'b--')
+axes[0].set_title('Actuals')
+axes[1].plot(range(len(X)), pred_classes_squeezed, 'r--')
+axes[1].set_title('Predictions')
+
+
+# In[19]:
+
+
+c = [x==y for (x,y) in zip(y, pred_classes_squeezed)]
+print('Correct predictions: ({}) vs Wrong predictions ({})'.format(c.count(True), c.count(False)))
 
 
 # In[ ]:

@@ -2,3 +2,4 @@
 __pycache__
 Question1_DLF-OneHot.ipynb
 *.pkl
+*.h5
