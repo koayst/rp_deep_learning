@@ -3,7 +3,7 @@ RP assignment for Deep Learning Fundamentals
 
 # Question 1
 - Run Question1_DLF.ipynb in jupyter notebook
-- Set 'verbose=0' or 'verbose' in the notebook to turn on verbosity by commenting/uncommenting the lines.
+- Set 'verbose=0' or 'verbose=1' in the notebook to turn on verbosity by commenting/uncommenting the lines.
 
 # Question 2
 - There are 3 files in the directory.  1) Question2_DLF.ipynb, 2) Question2_Test_DLF.ipynb 3) Question2_Test_DLF.py
